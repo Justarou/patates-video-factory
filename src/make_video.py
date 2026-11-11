@@ -66,7 +66,7 @@ class Potato:
 
 def make_space():
     sp = pymunk.Space()
-    sp.gravity = (0, 2200)
+    sp.gravity = (0, 1100)
     sp.damping = 0.96
     sp.iterations = 20
     a0 = math.asin(NECK / R)                      # demi-ouverture du ballon en haut
@@ -100,7 +100,7 @@ def simulate(seed, max_t=60.0):
         if boss_t is None and t >= next_drop:
             lvl = 0
             x = rnd.uniform(CX - NECK + RADII[0] + 8, CX + NECK - RADII[0] - 8)
-            pots.append(Potato(sp, lvl, x, -90, vx=rnd.uniform(-420, 420), vy=rnd.uniform(250, 600), t=t))
+            pots.append(Potato(sp, lvl, x, -90, vx=rnd.uniform(-260, 260), vy=rnd.uniform(60, 160), t=t))
             pots[-1].body.angular_velocity = rnd.uniform(-6, 6)
             events.append({"t": round(t, 3), "kind": "drop", "level": lvl})
             next_drop = t + rnd.uniform(0.33, 0.52)
