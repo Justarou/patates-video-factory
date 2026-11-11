@@ -21,11 +21,11 @@ SPRITE_FILES = ["01_patate_chips", "02_patate_nuggets", "03_patate_raclette", "0
                 "07_BOSS_patate_fondue_savoyarde_infinie"]
 RADII = [56, 72, 90, 112, 138, 168, 198]          # rayon de collision (px)
 
-CX, CY, R = 540, 900, 470     # ballon rond (comme la capture de référence)
+CX, CY, R = 540, 780, 470     # ballon rond (comme la capture de référence)
 NECK = 150                    # demi-largeur du goulot / tube
 NECK_Y = CY - int(math.sqrt(R * R - NECK * NECK))   # où le goulot rejoint le ballon
 SPACING = 60                  # écart bord à bord entre deux patates du flux (px, min 50)
-TUBE_VY = 380                 # vitesse de chute constante dans le tube (px/s) -> écart conservé
+TUBE_VY = 700                 # vitesse de chute constante dans le tube (px/s) -> écart conservé
 TUBE_Y = 110                  # hauteur de la patate tenue dans le tube
 FONT_B = next(p for p in [
     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
@@ -105,13 +105,14 @@ def simulate(seed, max_t=75.0):
             room = NECK - RADII[0] - 10 - amp
             x = CX + rnd.uniform(-room, room)
             # au moins 50 px d'écart (bord à bord) avec toute patate encore dans le tube
-            free = all(p.body.position.y + 90 >= 2 * RADII[0] + SPACING for p in pots if p.body.position.y < NECK_Y)
+            # la suivante tombe dès que la précédente a dépassé la fin des traits blancs
+            free = all(p.body.position.y >= NECK_Y for p in pots)
             if free:
-                pots.append(Potato(sp, lvl, x, -90, vy=TUBE_VY, t=t))
+                pots.append(Potato(sp, lvl, x, -70, vy=TUBE_VY, t=t))
                 pots[-1].sway = (x, amp, rnd.uniform(2.0, 3.2), rnd.uniform(0, 6.28))
                 pots[-1].body.angular_velocity = rnd.uniform(-1.5, 1.5)
                 events.append({"t": round(t, 3), "kind": "drop", "level": lvl})
-                next_drop = t + 0.05
+                next_drop = t + 0.0
         tube_x = CX
         # --- physique
         for sub_i in range(SUB):
@@ -297,19 +298,19 @@ def render(frames, events, boss_t, sprites, out_dir, preview=False):
                        outline=col + (int(255 * (1 - a)),), width=int(14 * (1 - a)) + 2)
         img.alpha_composite(ov)
         # HUD
-        text_c(img, (W // 2, 1500), f"SCORE: {fr['score']}", 84, sw=0)
+        text_c(img, (W // 2, CY + R + 110), f"SCORE: {fr['score']}", 84, sw=0)
         gap = 20
         bd = 104
         tw = 7 * bd + 6 * gap
         od2 = ImageDraw.Draw(img)
         for l in range(7):
             ix = (W - tw) // 2 + l * (bd + gap)
-            od2.ellipse((ix, 1590, ix + bd, 1590 + bd), fill=(26, 28, 48, 255), outline=(90, 94, 120, 255), width=4)
+            od2.ellipse((ix, CY + R + 190, ix + bd, CY + R + 190 + bd), fill=(26, 28, 48, 255), outline=(90, 94, 120, 255), width=4)
             if t >= discovered_at.get(l, 1e9):
                 ic = icons[l]
-                img.alpha_composite(ic, (ix + (bd - ic.width) // 2, 1590 + (bd - ic.height) // 2))
+                img.alpha_composite(ic, (ix + (bd - ic.width) // 2, CY + R + 190 + (bd - ic.height) // 2))
             else:
-                od2.text((ix + bd // 2, 1590 + bd // 2), "?", font=font(60), fill=(200, 205, 230), anchor="mm")
+                od2.text((ix + bd // 2, CY + R + 190 + bd // 2), "?", font=font(60), fill=(200, 205, 230), anchor="mm")
         # boss : flash + vignette
         if t >= boss_t:
             ab = t - boss_t
