@@ -24,7 +24,8 @@ RADII = [56, 72, 90, 112, 138, 168, 198]          # rayon de collision (px)
 CX, CY, R = 540, 900, 470     # ballon rond (comme la capture de référence)
 NECK = 150                    # demi-largeur du goulot / tube
 NECK_Y = CY - int(math.sqrt(R * R - NECK * NECK))   # où le goulot rejoint le ballon
-TUBE_VY = 300                 # vitesse de chute constante dans le tube (px/s) -> écart conservé
+SPACING = 60                  # écart bord à bord entre deux patates du flux (px, min 50)
+TUBE_VY = 380                 # vitesse de chute constante dans le tube (px/s) -> écart conservé
 TUBE_Y = 110                  # hauteur de la patate tenue dans le tube
 FONT_B = next(p for p in [
     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
@@ -59,7 +60,7 @@ class Potato:
         self.body.position = (x, y)
         self.body.velocity = (vx, vy)
         self.shape = pymunk.Circle(self.body, r)
-        self.shape.elasticity = 0.62
+        self.shape.elasticity = 0.3
         self.shape.friction = 0.5
         space.add(self.body, self.shape)
         self.lvl, self.born, self.pop, self.sway = lvl, t, pop, None
@@ -80,12 +81,12 @@ def make_space():
     segs += [((CX - NECK, -400), (CX - NECK, NECK_Y)), ((CX + NECK, -400), (CX + NECK, NECK_Y))]
     for a, b in segs:
         s_ = pymunk.Segment(sp.static_body, a, b, 8)
-        s_.elasticity, s_.friction = 0.9, 0.5
+        s_.elasticity, s_.friction = 0.5, 0.5
         sp.add(s_)
     return sp
 
 
-def simulate(seed, max_t=60.0):
+def simulate(seed, max_t=75.0):
     """Renvoie (frames d'état, événements) ou None si échec. Une frame = liste (lvl, x, y, angle, scale)."""
     rnd = random.Random(seed)
     sp = make_space()
@@ -104,7 +105,7 @@ def simulate(seed, max_t=60.0):
             room = NECK - RADII[0] - 10 - amp
             x = CX + rnd.uniform(-room, room)
             # au moins 50 px d'écart (bord à bord) avec toute patate encore dans le tube
-            free = all(p.body.position.y + 90 >= 2 * RADII[0] + 50 for p in pots if p.body.position.y < NECK_Y)
+            free = all(p.body.position.y + 90 >= 2 * RADII[0] + SPACING for p in pots if p.body.position.y < NECK_Y)
             if free:
                 pots.append(Potato(sp, lvl, x, -90, vy=TUBE_VY, t=t))
                 pots[-1].sway = (x, amp, rnd.uniform(2.0, 3.2), rnd.uniform(0, 6.28))
@@ -120,18 +121,6 @@ def simulate(seed, max_t=60.0):
                     age = (f * SUB + sub_i) * DT - p.born
                     p.body.position = (x0 + amp_ * math.sin(om * age + ph), p.body.position.y)
                     p.body.velocity = (amp_ * om * math.cos(om * age + ph), TUBE_VY)
-            # petit aimant entre patates identiques (niveau >=2) pour que la chaîne aboutisse
-            for i, a in enumerate(pots):
-                if a.lvl > 5:
-                    continue
-                for b in pots[i + 1:]:
-                    if b.lvl == a.lvl:
-                        d = b.body.position - a.body.position
-                        dist = abs(d)
-                        if dist > 1:
-                            fmag = 9000 * a.body.mass * min(1.0, 320 / dist)
-                            a.body.apply_force_at_world_point(d / dist * fmag, a.body.position)
-                            b.body.apply_force_at_world_point(-d / dist * fmag, b.body.position)
             sp.step(DT)
         # --- fusions
         merged = True
@@ -353,19 +342,16 @@ def main():
         seed = int(sys.argv[sys.argv.index("--seed") + 1])
     preview = "--preview" in sys.argv
     sprites = load_sprites()
-    res = None
-    seeds = [seed] if seed is not None else range(1, 200)
-    for s in seeds:
-        res = simulate(s)
-        if res:
-            frames, events, boss_t = res
-            dur = frames[-1]["t"]
-            print(f"seed {s}: OK, boss à {boss_t:.1f}s, durée {dur:.1f}s, {len(events)} événements", flush=True)
-            if 22 <= boss_t <= 45 or seed is not None:
-                break
-            res = None
-        else:
-            print(f"seed {s}: échec", flush=True)
+    res, best = None, None
+    seeds = [seed] if seed is not None else range(1, 61)
+    for sd in seeds:
+        r = simulate(sd)
+        print(f"seed {sd}: " + (f"boss à {r[2]:.1f}s" if r else "échec"), flush=True)
+        if r and (best is None or r[2] < best[0]):
+            best, res = (r[2], sd), r          # on garde la graine où le boss arrive le plus tôt
+    if res:
+        frames, events, boss_t = res
+        print(f"graine retenue: {best[1]} (boss à {boss_t:.1f}s)", flush=True)
     if not res:
         sys.exit("aucune graine valide")
     random.seed(1)
