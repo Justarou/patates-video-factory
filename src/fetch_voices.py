@@ -34,6 +34,8 @@ for _ in range(10):
         break
     token = d.get("last_history_item_id")
 print(len(items), "éléments d'historique")
+for h in items:
+    print(" -", h.get("history_item_id"), h.get("voice_name"), h.get("voice_id"), repr((h.get("text") or "")[:80]))
 
 for i, (phrase, vid) in enumerate(WANT, 1):
     cands = [h for h in items if phrase in (h.get("text") or "").lower() and h.get("voice_id") == vid]
