@@ -32,14 +32,33 @@ rng = np.random.default_rng(3)
 music_sfx = mix.copy(); mix[:] = 0
 mix += music_sfx * 0.7
 
-# --- voix : plus on monte, plus c'est fort (-16 dB niveau 1 -> +4 dB boss)
-for a in ev["announcements"]:
-    lvl = a["level"]
+# --- voix : plus on monte, plus c'est fort (-9 dB niveau 1 -> ~+6 dB boss)
+# Règle : la voix de la patate qui vient de naître coupe toutes les autres voix en cours
+# (sauf si une voix d'un niveau plus haut parle encore : on protège le plus gros nom).
+voices = {}
+for lvl in range(7):
     v, sr = sf.read(os.path.join(VOICES, f"{lvl + 1:02d}.wav"), dtype="float32")
-    if v.ndim > 1:
-        v = v.mean(axis=1)
-    gain_db = -9.0 + 2.5 * lvl
+    voices[lvl] = v.mean(axis=1) if v.ndim > 1 else v
+plan = []                                   # {t, level, end}
+cands = [(0.7, 0)] + [(e["t"], e["level"]) for e in ev["events"] if e["kind"] == "merge"]
+for t0, lvl in cands:
+    end = t0 + len(voices[lvl]) / SR
+    if plan and t0 < plan[-1]["end"]:
+        if lvl >= plan[-1]["level"]:
+            plan[-1]["end"] = t0            # on coupe la voix précédente
+        else:
+            continue                        # un plus gros nom parle encore : on ne le coupe pas
+    plan.append({"t": t0, "level": lvl, "end": end})
+FADE = int(0.03 * SR)
+for a in plan:
+    v = voices[a["level"]].copy()
+    n = min(len(v), int((a["end"] - a["t"]) * SR))
+    v = v[:n]
+    if n < len(voices[a["level"]]) and n > FADE:
+        v[-FADE:] *= np.linspace(1, 0, FADE)  # fondu très court pour éviter le clic
+    gain_db = -9.0 + 2.5 * a["level"]
     put(v, a["t"], 10 ** (gain_db / 20))
+print(len(plan), "voix jouées,", sum(1 for a in plan if a["end"] < a["t"] + len(voices[a["level"]]) / SR - 0.01), "coupées")
 
 pk = float(np.max(np.abs(mix))) or 1.0
 mix *= 1.6 / pk if pk < 1.6 else 1.0   # niveau global sans écraser les écarts entre niveaux

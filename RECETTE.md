@@ -20,7 +20,7 @@ Ce qui change d'une vidéo à l'autre : **le style des 7 patates** et **les 7 no
 - Fusion → nouvelle patate au milieu, petit « pop » visuel, anneau, tremblement d'écran croissant avec le niveau ; boss = flash blanc + gros tremblement.
 - 7 niveaux, boss = niveau 7 (rayons collision 56, 72, 90, 112, 138, 168, 198 px).
 - La graine de simulation est choisie parmi 60 : on garde celle où le boss arrive le plus tôt (~49 s, vidéo ~54 s).
-- **Voix** : chaque fusion déclenche la voix du niveau obtenu (intro : voix niveau 1). Si une voix est en cours, on saute les plus petites. Volume croissant avec le niveau : -9 dB au niveau 1, +2,5 dB par niveau (≈ +6 dB au boss). Niveaux 5-7 : traitement grave (pitch, basses, écho) dans `process_voices.py`. Début/fin de chaque voix coupés pour que le nom s'enchaîne sans blanc.
+- **Voix** : chaque fusion déclenche la voix du niveau obtenu (intro : voix niveau 1). **La voix de la patate qui vient de naître coupe toutes les autres voix en cours** (fondu de 30 ms) : c'est la seule qu'on entend. Si une voix d'un niveau plus haut parle encore, une fusion de niveau plus bas ne la coupe pas. Volume croissant avec le niveau : -9 dB au niveau 1, +2,5 dB par niveau (≈ +6 dB au boss). Niveaux 5-7 : traitement grave (pitch, basses, écho) dans `process_voices.py`. Début/fin de chaque voix coupés pour que le nom s'enchaîne sans blanc.
 
 ## Technique
 - Dépôt : `Justarou/patates-video-factory` (public). Secret `ELEVENLABS_API_KEY` (droit History en lecture).
