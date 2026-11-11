@@ -7,6 +7,7 @@ BUILD = sys.argv[1] if len(sys.argv) > 1 else "build"
 VOICES = sys.argv[2] if len(sys.argv) > 2 else "voices/final"
 OUT = sys.argv[3] if len(sys.argv) > 3 else os.path.join(BUILD, "patates.mp4")
 SR = 44100
+os.makedirs(os.path.dirname(OUT) or ".", exist_ok=True)
 ev = json.load(open(os.path.join(BUILD, "events.json")))
 dur = ev["duration"] + 1.0
 mix = np.zeros(int(dur * SR), dtype=np.float32)
