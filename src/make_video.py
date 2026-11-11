@@ -50,7 +50,7 @@ def load_sprites():
 
 # ---------------------------------------------------------------- simulation
 class Potato:
-    __slots__ = ("lvl", "body", "shape", "born", "pop")
+    __slots__ = ("lvl", "body", "shape", "born", "pop", "sway")
 
     def __init__(self, space, lvl, x, y, vx=0.0, vy=0.0, t=0.0, pop=False):
         r = RADII[lvl]
@@ -62,7 +62,7 @@ class Potato:
         self.shape.elasticity = 0.62
         self.shape.friction = 0.5
         space.add(self.body, self.shape)
-        self.lvl, self.born, self.pop = lvl, t, pop
+        self.lvl, self.born, self.pop, self.sway = lvl, t, pop, None
 
 
 def make_space():
@@ -100,20 +100,26 @@ def simulate(seed, max_t=60.0):
         # --- flux continu : seules des patates niveau 1 tombent du haut de l'écran, trajectoire non droite
         if boss_t is None and t >= next_drop:
             lvl = 0
-            x = rnd.uniform(CX - NECK + RADII[0] + 8, CX + NECK - RADII[0] - 8)
+            amp = rnd.uniform(18, 38)                       # léger balancement, sans toucher les parois
+            room = NECK - RADII[0] - 10 - amp
+            x = CX + rnd.uniform(-room, room)
             # au moins 50 px d'écart (bord à bord) avec toute patate encore dans le tube
             free = all(p.body.position.y + 90 >= 2 * RADII[0] + 50 for p in pots if p.body.position.y < NECK_Y)
             if free:
-                pots.append(Potato(sp, lvl, x, -90, vx=rnd.uniform(-260, 260), vy=TUBE_VY, t=t))
-                pots[-1].body.angular_velocity = rnd.uniform(-6, 6)
+                pots.append(Potato(sp, lvl, x, -90, vy=TUBE_VY, t=t))
+                pots[-1].sway = (x, amp, rnd.uniform(2.0, 3.2), rnd.uniform(0, 6.28))
+                pots[-1].body.angular_velocity = rnd.uniform(-1.5, 1.5)
                 events.append({"t": round(t, 3), "kind": "drop", "level": lvl})
                 next_drop = t + 0.05
         tube_x = CX
         # --- physique
-        for _ in range(SUB):
+        for sub_i in range(SUB):
             for p in pots:                         # dans le tube : chute à vitesse constante
-                if p.body.position.y < NECK_Y - RADII[p.lvl]:
-                    p.body.velocity = (p.body.velocity.x, TUBE_VY)
+                if p.sway and p.body.position.y < NECK_Y - RADII[p.lvl]:
+                    x0, amp_, om, ph = p.sway
+                    age = (f * SUB + sub_i) * DT - p.born
+                    p.body.position = (x0 + amp_ * math.sin(om * age + ph), p.body.position.y)
+                    p.body.velocity = (amp_ * om * math.cos(om * age + ph), TUBE_VY)
             # petit aimant entre patates identiques (niveau >=2) pour que la chaîne aboutisse
             for i, a in enumerate(pots):
                 if a.lvl > 5:
