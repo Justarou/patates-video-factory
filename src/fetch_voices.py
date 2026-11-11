@@ -37,15 +37,15 @@ print(len(items), "éléments d'historique")
 for h in items:
     print(" -", h.get("history_item_id"), h.get("voice_name"), h.get("voice_id"), repr((h.get("text") or "")[:80]))
 
-for i, (phrase, vid) in enumerate(WANT, 1):
-    cands = [h for h in items if phrase in (h.get("text") or "").lower() and h.get("voice_id") == vid]
-    if not cands:
-        cands = [h for h in items if phrase in (h.get("text") or "").lower()]
-    if not cands:
-        sys.exit(f"Voix niveau {i} introuvable dans l'historique (phrase '{phrase}')")
-    h = max(cands, key=lambda x: x.get("date_unix", 0))
-    a = requests.get(f"https://api.elevenlabs.io/v1/history/{h['history_item_id']}/audio", headers=H, timeout=120)
+# L'historique de cette clé n'expose pas les textes : on utilise les identifiants connus (niveau 1 -> 7).
+IDS = ["HsWOBcQEiExrziQDz3HE", "sYMoVpkkk7beu4e9uIZZ", "ALTQbSv6I8TGYbk3PN69", "hLlZsOy0rJBeWaO99Pfw",
+       "r7H51STDRwXHwNmQ9HHi", "0xX93Ssp4qeWIU1MM5vy", "RNKg5l0LfQ78nGIRHP3h"]
+known = {h["history_item_id"] for h in items}
+for i, hid in enumerate(IDS, 1):
+    if hid not in known:
+        print(f"  attention: {hid} absent de l'historique")
+    a = requests.get(f"https://api.elevenlabs.io/v1/history/{hid}/audio", headers=H, timeout=120)
     a.raise_for_status()
     path = os.path.join(OUT, f"{i:02d}.mp3")
     open(path, "wb").write(a.content)
-    print(f"niveau {i}: {h.get('voice_name')} {len(a.content)} octets <- {h.get('text')!r}")
+    print(f"niveau {i} ({WANT[i-1][0]}): {len(a.content)} octets")
