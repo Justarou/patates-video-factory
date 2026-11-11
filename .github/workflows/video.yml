@@ -3,6 +3,10 @@ name: Générer la vidéo patates
 on:
   workflow_dispatch:
     inputs:
+      theme:
+        description: "Thème (dossier de themes/)"
+        required: false
+        default: "caca"
       seed:
         description: "Graine de la simulation (vide = auto)"
         required: false
@@ -27,23 +31,23 @@ jobs:
       - name: Télécharger les voix ElevenLabs
         env:
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
-        run: python src/fetch_voices.py voices/raw
+        run: python src/fetch_voices.py voices/raw ${{ inputs.theme || 'caca' }}
       - name: Traiter les voix
         run: python src/process_voices.py voices/raw voices/final
       - name: Simulation + rendu
         run: |
           if [ -n "${{ inputs.seed }}" ]; then SEED="--seed ${{ inputs.seed }}"; fi
-          python src/make_video.py build $SEED
+          python src/make_video.py build --theme ${{ inputs.theme || 'caca' }} $SEED
       - name: Mix audio + assemblage
-        run: python src/mix_audio.py build voices/final output/patates.mp4
+        run: python src/mix_audio.py build voices/final output/${{ inputs.theme || 'caca' }}.mp4
       - uses: actions/upload-artifact@v4
         with:
           name: patates-video
-          path: output/patates.mp4
+          path: output/${{ inputs.theme || 'caca' }}.mp4
       - name: Commit de la vidéo
         run: |
           git config user.name "patates-bot"
           git config user.email "bot@users.noreply.github.com"
-          git add -f output/patates.mp4 build/events.json
+          git add -f output/${{ inputs.theme || 'caca' }}.mp4
           git commit -m "Vidéo générée" || echo "rien à commiter"
           git push

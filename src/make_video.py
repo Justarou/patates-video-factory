@@ -38,10 +38,18 @@ def font(sz):
 
 
 # ---------------------------------------------------------------- sprites
+THEME = "caca"
+if "--theme" in sys.argv:
+    THEME = sys.argv[sys.argv.index("--theme") + 1]
+
+
 def load_sprites():
+    import glob
+    files = sorted(glob.glob(os.path.join(ROOT, "themes", THEME, "sprites", "0*.png")))
+    assert len(files) == 7, f"thème {THEME} : 7 sprites attendus, {len(files)} trouvés"
     out = []
-    for lvl, name in enumerate(SPRITE_FILES):
-        im = Image.open(os.path.join(ROOT, "assets", "sprites", name + ".png")).convert("RGBA")
+    for lvl, path in enumerate(files):
+        im = Image.open(path).convert("RGBA")
         bb = im.getchannel("A").point(lambda v: 255 if v > 40 else 0).getbbox()
         body = 0.5 * min(bb[2] - bb[0], bb[3] - bb[1]) * 0.96   # rayon visuel du corps (sur 512)
         size = int(round(RADII[lvl] / body * 512))
