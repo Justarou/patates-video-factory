@@ -67,9 +67,11 @@ for a in ev["announcements"]:
     gain_db = -16.0 + 3.4 * lvl
     put(v, a["t"], 10 ** (gain_db / 20))
 
+pk = float(np.max(np.abs(mix))) or 1.0
+mix *= 1.6 / pk if pk < 1.6 else 1.0   # niveau global sans écraser les écarts entre niveaux
 sf.write(os.path.join(BUILD, "mix_raw.wav"), mix, SR)
 subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", os.path.join(BUILD, "mix_raw.wav"),
-                "-af", "alimiter=limit=0.93:attack=3:release=60,loudnorm=I=-14:TP=-1.0:LRA=9",
+                "-af", "alimiter=limit=0.93:attack=3:release=60",
                 os.path.join(BUILD, "mix.wav")], check=True)
 subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", os.path.join(BUILD, "video_silent.mp4"),
                 "-i", os.path.join(BUILD, "mix.wav"), "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
