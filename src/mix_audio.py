@@ -56,15 +56,15 @@ n = int(1.5 * SR)
 put((rng.standard_normal(n) * np.exp(-3 * np.arange(n) / SR) * 0.4).astype(np.float32), boss, 0.8)
 
 music_sfx = mix.copy(); mix[:] = 0
-mix += music_sfx * 0.55
+mix += music_sfx * 0.40
 
-# --- voix : plus on monte, plus c'est fort (-12 dB niveau 1 -> +4 dB boss)
+# --- voix : plus on monte, plus c'est fort (-16 dB niveau 1 -> +4 dB boss)
 for a in ev["announcements"]:
     lvl = a["level"]
     v, sr = sf.read(os.path.join(VOICES, f"{lvl + 1:02d}.wav"), dtype="float32")
     if v.ndim > 1:
         v = v.mean(axis=1)
-    gain_db = -12.0 + 2.7 * lvl
+    gain_db = -16.0 + 3.4 * lvl
     put(v, a["t"], 10 ** (gain_db / 20))
 
 sf.write(os.path.join(BUILD, "mix_raw.wav"), mix, SR)
