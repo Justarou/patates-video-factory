@@ -96,25 +96,20 @@ def simulate(seed, max_t=60.0):
     nframes = int(max_t * FPS)
     for f in range(nframes):
         t = f / FPS
-        # --- director : lâcher une patate
-        if boss_t is None and held is None and t >= next_drop:
-            lvl = rnd.choice([0, 0, 0, 1, 1, 2])
-            lo, hi = CX - NECK + RADII[lvl] + 8, CX + NECK - RADII[lvl] - 8
-            x = rnd.uniform(lo, hi)
-            tube_target = x
-            held = (lvl, x, t + 0.35)
-        tube_x += (tube_target - tube_x) * 0.35
-        if held and t >= held[2]:
-            lvl, x, _ = held
-            pots.append(Potato(sp, lvl, x, TUBE_Y, vy=200, t=t))
+        # --- flux continu : seules des patates niveau 1 tombent du haut de l'écran, trajectoire non droite
+        if boss_t is None and t >= next_drop:
+            lvl = 0
+            x = rnd.uniform(CX - NECK + RADII[0] + 8, CX + NECK - RADII[0] - 8)
+            pots.append(Potato(sp, lvl, x, -90, vx=rnd.uniform(-420, 420), vy=rnd.uniform(250, 600), t=t))
+            pots[-1].body.angular_velocity = rnd.uniform(-6, 6)
             events.append({"t": round(t, 3), "kind": "drop", "level": lvl})
-            held = None
-            next_drop = t + rnd.uniform(0.55, 0.85)
+            next_drop = t + rnd.uniform(0.33, 0.52)
+        tube_x = CX
         # --- physique
         for _ in range(SUB):
             # petit aimant entre patates identiques (niveau >=2) pour que la chaîne aboutisse
             for i, a in enumerate(pots):
-                if a.lvl < 2 or a.lvl > 5:
+                if a.lvl > 5:
                     continue
                 for b in pots[i + 1:]:
                     if b.lvl == a.lvl:
@@ -151,10 +146,10 @@ def simulate(seed, max_t=60.0):
                 if merged:
                     break
         # --- overflow = échec
-        if any(p.body.position.y < NECK_Y + 30 and t > 2 and p.body.velocity.length < 60 and p.body.position.y > 0
+        if any(p.body.position.y < NECK_Y + 30 and t > 2 and p.body.velocity.length < 60 and p.body.position.y > 0 and t - p.born > 3
                for p in pots):
             return None
-        frames.append({"t": t, "tube_x": tube_x, "held": held, "score": score,
+        frames.append({"t": t, "tube_x": tube_x, "held": None, "score": score,
                        "pots": [(p.lvl, p.body.position.x, p.body.position.y, p.body.angle, p.born, p.pop)
                                 for p in pots]})
         if boss_t is not None and t > boss_t + 4.5:
@@ -313,32 +308,12 @@ def render(frames, events, boss_t, sprites, out_dir, preview=False):
                 img.alpha_composite(ic, (ix + (bd - ic.width) // 2, 1590 + (bd - ic.height) // 2))
             else:
                 od2.text((ix + bd // 2, 1590 + bd // 2), "?", font=font(60), fill=(200, 205, 230), anchor="mm")
-        # bannière du nom annoncé
-        cur = None
-        for a in bann:
-            dur = [1.1, 1.1, 1.2, 1.3, 1.8, 2.0, 3.6][a["level"]]
-            if a["t"] <= t < a["t"] + dur:
-                cur = a
-        if cur:
-            lvl, age = cur["level"], t - cur["t"]
-            pop = 1.0 + 0.35 * max(0.0, 1 - age / 0.25)
-            base = [76, 82, 88, 96, 104, 112, 118][lvl]
-            txt = NAMES[lvl]
-            lines = txt.split(" ", 2)
-            lines = [" ".join(lines[:2]), lines[2]] if len(lines) == 3 else [txt]
-            sz = min(fit_font(l, 980, int(base * pop * 1.2)) for l in lines)
-            y0 = CY - (len(lines) - 1) * sz * 0.55
-            for k, l in enumerate(lines):
-                col = hsv(0.12 - lvl * 0.012, 0.85 - lvl * 0.06, 1)
-                text_c(img, (W // 2, int(y0 + k * sz * 1.1)), l, sz, fill=col, sw=10 + lvl)
         # boss : flash + vignette
         if t >= boss_t:
             ab = t - boss_t
             if ab < 0.5:
                 fl = Image.new("RGBA", (W, H), (255, 255, 255, int(220 * (1 - ab / 0.5))))
                 img.alpha_composite(fl)
-            if ab > 1.0:
-                text_c(img, (W // 2, 1800), "NIVEAU MAX", 96, fill=(255, 90, 60))
         # tremblement croissant
         lv = max([p[0] for p in fr["pots"]] + [0])
         amp = 0
@@ -373,7 +348,7 @@ def main():
             frames, events, boss_t = res
             dur = frames[-1]["t"]
             print(f"seed {s}: OK, boss à {boss_t:.1f}s, durée {dur:.1f}s, {len(events)} événements", flush=True)
-            if 22 <= boss_t <= 40 or seed is not None:
+            if 22 <= boss_t <= 45 or seed is not None:
                 break
             res = None
         else:

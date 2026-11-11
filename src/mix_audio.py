@@ -29,20 +29,6 @@ def env_sine(f0, f1, length, decay=6.0, vol=1.0):
 
 rng = np.random.default_rng(3)
 
-# --- SFX : pop à chaque lâcher, boing à chaque fusion
-for e in ev["events"]:
-    if e["kind"] == "drop":
-        put(env_sine(300, 140, 0.12, 25, 0.5), e["t"], 0.5)
-    else:
-        lvl = e["level"]
-        put(env_sine(260 - lvl * 22, 700 - lvl * 40, 0.28, 8, 0.7), e["t"], 0.6 + 0.05 * lvl)
-        if lvl >= 4:
-            put(env_sine(90, 38, 0.9, 4, 1.0), e["t"], 0.5 + 0.1 * (lvl - 4))
-boss = ev["boss_t"]
-put(env_sine(70, 25, 2.5, 1.6, 1.0), boss, 1.0)                       # grosse bombe
-n = int(1.5 * SR)
-put((rng.standard_normal(n) * np.exp(-3 * np.arange(n) / SR) * 0.4).astype(np.float32), boss, 0.8)
-
 music_sfx = mix.copy(); mix[:] = 0
 mix += music_sfx * 0.7
 
