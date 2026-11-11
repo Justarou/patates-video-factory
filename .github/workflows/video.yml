@@ -1,0 +1,49 @@
+name: Générer la vidéo patates
+
+on:
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: "Graine de la simulation (vide = auto)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  video:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Dépendances système
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core
+      - name: Dépendances Python
+        run: pip install -r requirements.txt
+      - name: Télécharger les voix ElevenLabs
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+        run: python src/fetch_voices.py voices/raw
+      - name: Traiter les voix
+        run: python src/process_voices.py voices/raw voices/final
+      - name: Simulation + rendu
+        run: |
+          if [ -n "${{ inputs.seed }}" ]; then SEED="--seed ${{ inputs.seed }}"; fi
+          python src/make_video.py build $SEED
+      - name: Mix audio + assemblage
+        run: python src/mix_audio.py build voices/final output/patates.mp4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: patates-video
+          path: output/patates.mp4
+      - name: Commit de la vidéo
+        run: |
+          git config user.name "patates-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add -f output/patates.mp4 build/events.json
+          git commit -m "Vidéo générée" || echo "rien à commiter"
+          git push

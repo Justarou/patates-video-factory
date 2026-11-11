@@ -1,0 +1,4 @@
+build/*
+!build/events.json
+voices/
+__pycache__/
