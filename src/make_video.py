@@ -247,6 +247,7 @@ def render(frames, events, boss_t, sprites, out_dir, preview=False):
             last_lvl = e["level"]
     for a in ann:
         a["t"] = round(a["t"], 3)
+    bann = [{"t": 0.7, "level": 0}] + [{"t": e["t"], "level": e["level"]} for e in merges]   # le nom s'écrit à CHAQUE fusion
     total_t = frames[-1]["t"] + 0.2
     json.dump({"announcements": ann, "events": events, "duration": total_t, "boss_t": boss_t},
               open(os.path.join(out_dir, "events.json"), "w"), indent=1)
@@ -314,8 +315,8 @@ def render(frames, events, boss_t, sprites, out_dir, preview=False):
                 od2.text((ix + bd // 2, 1590 + bd // 2), "?", font=font(60), fill=(200, 205, 230), anchor="mm")
         # bannière du nom annoncé
         cur = None
-        for a in ann:
-            dur = [1.2, 1.2, 1.4, 1.4, 1.8, 2.0, 3.6][a["level"]]
+        for a in bann:
+            dur = [1.1, 1.1, 1.2, 1.3, 1.8, 2.0, 3.6][a["level"]]
             if a["t"] <= t < a["t"] + dur:
                 cur = a
         if cur:
