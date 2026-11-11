@@ -1,4 +1,4 @@
-"""Mixe voix (volume croissant avec le niveau), SFX et musique synthétiques, puis assemble avec la vidéo."""
+"""Mixe voix (volume croissant avec le niveau) et SFX synthétiques (pas de musique), puis assemble avec la vidéo."""
 import json, os, subprocess, sys
 import numpy as np
 import soundfile as sf
@@ -28,18 +28,6 @@ def env_sine(f0, f1, length, decay=6.0, vol=1.0):
 
 
 rng = np.random.default_rng(3)
-# --- musique : boucle simple kick / hat / basse, 124 bpm
-bpm = 124; beat = 60 / bpm
-kick = env_sine(150, 45, 0.25, 12, 0.9)
-hat = (rng.standard_normal(int(0.05 * SR)) * np.exp(-60 * np.arange(int(0.05 * SR)) / SR)).astype(np.float32) * 0.25
-notes = [55, 55, 65.4, 49]
-t = 0.0; k = 0
-while t < dur:
-    put(kick, t, 0.5)
-    put(hat, t + beat / 2, 0.35)
-    nf = notes[(k // 4) % 4]
-    put(env_sine(nf, nf, beat * 0.9, 3.5, 0.5) * 0.6, t, 0.5)
-    t += beat; k += 1
 
 # --- SFX : pop à chaque lâcher, boing à chaque fusion
 for e in ev["events"]:
@@ -56,7 +44,7 @@ n = int(1.5 * SR)
 put((rng.standard_normal(n) * np.exp(-3 * np.arange(n) / SR) * 0.4).astype(np.float32), boss, 0.8)
 
 music_sfx = mix.copy(); mix[:] = 0
-mix += music_sfx * 0.40
+mix += music_sfx * 0.7
 
 # --- voix : plus on monte, plus c'est fort (-16 dB niveau 1 -> +4 dB boss)
 for a in ev["announcements"]:

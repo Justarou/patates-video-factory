@@ -21,9 +21,10 @@ SPRITE_FILES = ["01_patate_chips", "02_patate_nuggets", "03_patate_raclette", "0
                 "07_BOSS_patate_fondue_savoyarde_infinie"]
 RADII = [56, 72, 90, 112, 138, 168, 198]          # rayon de collision (px)
 
-VX0, VX1 = 140, 940           # vase : bords intérieurs
-VTOP, VBOT = 800, 1540        # haut visible / sol du vase
-TUBE_Y = 700                  # bas du tube (la patate y est tenue)
+CX, CY, R = 540, 900, 470     # ballon rond (comme la capture de référence)
+NECK = 150                    # demi-largeur du goulot / tube
+NECK_Y = CY - int(math.sqrt(R * R - NECK * NECK))   # où le goulot rejoint le ballon
+TUBE_Y = 110                  # hauteur de la patate tenue dans le tube
 FONT_B = next(p for p in [
     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
     "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
@@ -57,8 +58,8 @@ class Potato:
         self.body.position = (x, y)
         self.body.velocity = (vx, vy)
         self.shape = pymunk.Circle(self.body, r)
-        self.shape.elasticity = 0.12
-        self.shape.friction = 0.7
+        self.shape.elasticity = 0.62
+        self.shape.friction = 0.5
         space.add(self.body, self.shape)
         self.lvl, self.born, self.pop = lvl, t, pop
 
@@ -66,13 +67,20 @@ class Potato:
 def make_space():
     sp = pymunk.Space()
     sp.gravity = (0, 2200)
-    sp.damping = 0.88
+    sp.damping = 0.96
     sp.iterations = 20
-    for a, b in [((VX0 - 12, 300), (VX0 - 12, VBOT + 12)), ((VX1 + 12, 300), (VX1 + 12, VBOT + 12)),
-                 ((VX0 - 12, VBOT + 12), (VX1 + 12, VBOT + 12))]:
-        s = pymunk.Segment(sp.static_body, a, b, 12)
-        s.elasticity, s.friction = 0.1, 0.8
-        sp.add(s)
+    a0 = math.asin(NECK / R)                      # demi-ouverture du ballon en haut
+    n = 140
+    pts = []
+    for k in range(n + 1):                        # arc complet sauf l'ouverture du haut
+        ang = -math.pi / 2 + a0 + (2 * math.pi - 2 * a0) * k / n
+        pts.append((CX + R * math.cos(ang), CY + R * math.sin(ang)))
+    segs = list(zip(pts[:-1], pts[1:]))
+    segs += [((CX - NECK, -400), (CX - NECK, NECK_Y)), ((CX + NECK, -400), (CX + NECK, NECK_Y))]
+    for a, b in segs:
+        s_ = pymunk.Segment(sp.static_body, a, b, 8)
+        s_.elasticity, s_.friction = 0.9, 0.5
+        sp.add(s_)
     return sp
 
 
@@ -83,34 +91,22 @@ def simulate(seed, max_t=60.0):
     pots, events, frames, rings = [], [], [], []
     held = None            # (lvl, x, tdrop)
     t, next_drop, score, boss_t = 0.0, 0.9, 0, None
-    tube_x, tube_target = (VX0 + VX1) / 2, (VX0 + VX1) / 2
+    tube_x, tube_target = CX, CX
     announced_intro = False
     nframes = int(max_t * FPS)
     for f in range(nframes):
         t = f / FPS
         # --- director : lâcher une patate
         if boss_t is None and held is None and t >= next_drop:
-            present = {}
-            for p in pots:
-                if p.lvl <= 5:
-                    present.setdefault(p.lvl, []).append(p)
             lvl = rnd.choice([0, 0, 0, 1, 1, 2])
-            tgt = None
-            for l in (lvl, 0, 1, 2):
-                cands = [p for p in present.get(l, []) if p.body.position.y < VBOT - 20]
-                if cands and rnd.random() < 0.85:
-                    tgt = max(cands, key=lambda p: -p.body.position.y); lvl = l; break
-            if tgt is not None:
-                x = tgt.body.position.x + rnd.uniform(-10, 10)
-            else:
-                x = rnd.uniform(VX0 + RADII[lvl] + 8, VX1 - RADII[lvl] - 8)
-            x = min(max(x, VX0 + RADII[lvl] + 6), VX1 - RADII[lvl] - 6)
+            lo, hi = CX - NECK + RADII[lvl] + 8, CX + NECK - RADII[lvl] - 8
+            x = rnd.uniform(lo, hi)
             tube_target = x
             held = (lvl, x, t + 0.35)
         tube_x += (tube_target - tube_x) * 0.35
         if held and t >= held[2]:
             lvl, x, _ = held
-            pots.append(Potato(sp, lvl, x, TUBE_Y + 10, vy=300, t=t))
+            pots.append(Potato(sp, lvl, x, TUBE_Y, vy=200, t=t))
             events.append({"t": round(t, 3), "kind": "drop", "level": lvl})
             held = None
             next_drop = t + rnd.uniform(0.55, 0.85)
@@ -155,7 +151,7 @@ def simulate(seed, max_t=60.0):
                 if merged:
                     break
         # --- overflow = échec
-        if any(p.body.position.y - RADII[p.lvl] < VTOP - 260 and t > 2 and p.body.velocity.length < 60
+        if any(p.body.position.y < NECK_Y + 30 and t > 2 and p.body.velocity.length < 60 and p.body.position.y > 0
                for p in pots):
             return None
         frames.append({"t": t, "tube_x": tube_x, "held": held, "score": score,
@@ -176,52 +172,39 @@ def hsv(h, s=1.0, v=1.0):
 
 
 def build_background():
-    yy = np.linspace(0, 1, H)[:, None]
-    top, bot = np.array([14, 10, 46]), np.array([34, 14, 70])
-    bg = (top * (1 - yy) + bot * yy)[:, None, :].repeat(W, axis=1)
-    img = Image.fromarray(bg.astype("uint8"), "RGB")
-    d = ImageDraw.Draw(img)
-    rnd = random.Random(7)
-    for _ in range(140):
-        x, y, r = rnd.randrange(W), rnd.randrange(H), rnd.choice([1, 1, 2, 2, 3])
-        c = rnd.randrange(120, 255)
-        d.ellipse((x - r, y - r, x + r, y + r), fill=(c, c, 255))
-    return img.convert("RGBA")
+    return Image.new("RGBA", (W, H), (5, 5, 14, 255))          # noir comme la capture
 
 
 def build_vase():
     layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    inner = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    ImageDraw.Draw(inner).rectangle((VX0, VTOP, VX1, VBOT), fill=(8, 6, 28, 190))
-    layer = Image.alpha_composite(layer, inner)
-    glow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    g = ImageDraw.Draw(glow)
-    pts = [(VX0 - 8, VTOP - 20), (VX0 - 8, VBOT + 8), (VX1 + 8, VBOT + 8), (VX1 + 8, VTOP - 20)]
-    n = 240
-    path = []
-    for a, b in zip(pts[:-1], pts[1:]):
-        for k in range(n):
-            u = k / n
-            path.append((a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u))
-    for i, (x, y) in enumerate(path):
-        c = hsv(i / len(path) * 1.5)
-        g.ellipse((x - 11, y - 11, x + 11, y + 11), fill=c + (255,))
-    soft = glow.filter(ImageFilter.GaussianBlur(26))
+    ImageDraw.Draw(layer).ellipse((CX - R, CY - R, CX + R, CY + R), fill=(3, 3, 10, 255))
+    ring = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    g = ImageDraw.Draw(ring)
+    a0 = math.asin(NECK / R)
+    n = 720
+    for k in range(n + 1):
+        u = k / n
+        ang = -math.pi / 2 + a0 + (2 * math.pi - 2 * a0) * u
+        x, y = CX + R * math.cos(ang), CY + R * math.sin(ang)
+        c = hsv(0.5 - u * 1.0)                      # cyan en haut à gauche -> jaune en bas -> violet à droite
+        g.ellipse((x - 7, y - 7, x + 7, y + 7), fill=c + (255,))
+    soft = ring.filter(ImageFilter.GaussianBlur(14))
     layer = Image.alpha_composite(layer, soft)
-    layer = Image.alpha_composite(layer, soft)
-    layer = Image.alpha_composite(layer, glow)
+    layer = Image.alpha_composite(layer, ring)
+    # tube : deux traits blancs lumineux jusqu'en haut
+    tube = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    td = ImageDraw.Draw(tube)
+    for x in (CX - NECK, CX + NECK):
+        td.rectangle((x - 4, 0, x + 4, NECK_Y), fill=(255, 255, 255, 255))
+    tsoft = tube.filter(ImageFilter.GaussianBlur(10))
+    layer = Image.alpha_composite(layer, tsoft)
+    layer = Image.alpha_composite(layer, tube)
     return layer
 
 
 def draw_tube(img, tx, held_sprite):
-    d = ImageDraw.Draw(img)
-    x0, x1 = tx - 78, tx + 78
-    d.rounded_rectangle((x0, 440, x1, TUBE_Y - 40), 18, fill=(105, 112, 140), outline=(210, 220, 255), width=5)
-    d.rectangle((x0 + 16, 440, x0 + 34, TUBE_Y - 40), fill=(150, 160, 190))
-    d.rounded_rectangle((x0 - 14, TUBE_Y - 52, x1 + 14, TUBE_Y - 14), 10, fill=(80, 86, 112),
-                        outline=(210, 220, 255), width=5)
     if held_sprite is not None:
-        img.alpha_composite(held_sprite, (int(tx - held_sprite.width / 2), int(TUBE_Y - 10 - held_sprite.height / 2 + 40)))
+        img.alpha_composite(held_sprite, (int(tx - held_sprite.width / 2), int(TUBE_Y - held_sprite.height / 2)))
 
 
 def text_c(img, xy, txt, size, fill=(255, 255, 255), stroke=(20, 8, 40), sw=8, alpha=255):
@@ -246,7 +229,7 @@ def render(frames, events, boss_t, sprites, out_dir, preview=False):
         a = im.getchannel("A")
         s = Image.new("RGBA", im.size, (40, 34, 80, 255)); s.putalpha(a)
         sil.append(s)
-    icon_h = 92
+    icon_h = 88
     icons = [im.resize((icon_h, icon_h), Image.LANCZOS) for im in sprites]
     sil_i = [im.resize((icon_h, icon_h), Image.LANCZOS) for im in sil]
     merges = [e for e in events if e["kind"] == "merge"]
@@ -316,18 +299,19 @@ def render(frames, events, boss_t, sprites, out_dir, preview=False):
                        outline=col + (int(255 * (1 - a)),), width=int(14 * (1 - a)) + 2)
         img.alpha_composite(ov)
         # HUD
-        text_c(img, (W // 2, 170), "FUSIONNE LES PATATES", 64, fill=(255, 238, 120))
-        text_c(img, (W // 2, 262), f"SCORE : {fr['score']}", 62)
-        gap = 18
-        tw = 7 * icon_h + 6 * gap
+        text_c(img, (W // 2, 1500), f"SCORE: {fr['score']}", 84, sw=0)
+        gap = 20
+        bd = 104
+        tw = 7 * bd + 6 * gap
+        od2 = ImageDraw.Draw(img)
         for l in range(7):
-            ix = (W - tw) // 2 + l * (icon_h + gap)
+            ix = (W - tw) // 2 + l * (bd + gap)
+            od2.ellipse((ix, 1590, ix + bd, 1590 + bd), fill=(26, 28, 48, 255), outline=(90, 94, 120, 255), width=4)
             if t >= discovered_at.get(l, 1e9):
-                img.alpha_composite(icons[l], (ix, 330))
+                ic = icons[l]
+                img.alpha_composite(ic, (ix + (bd - ic.width) // 2, 1590 + (bd - ic.height) // 2))
             else:
-                img.alpha_composite(sil_i[l], (ix, 330))
-                ImageDraw.Draw(img).text((ix + icon_h // 2, 330 + icon_h // 2), "?", font=font(54),
-                                         fill=(255, 255, 255), anchor="mm")
+                od2.text((ix + bd // 2, 1590 + bd // 2), "?", font=font(60), fill=(200, 205, 230), anchor="mm")
         # bannière du nom annoncé
         cur = None
         for a in ann:
@@ -342,7 +326,7 @@ def render(frames, events, boss_t, sprites, out_dir, preview=False):
             lines = txt.split(" ", 2)
             lines = [" ".join(lines[:2]), lines[2]] if len(lines) == 3 else [txt]
             sz = min(fit_font(l, 980, int(base * pop * 1.2)) for l in lines)
-            y0 = 1110 - (len(lines) - 1) * sz * 0.55
+            y0 = CY - (len(lines) - 1) * sz * 0.55
             for k, l in enumerate(lines):
                 col = hsv(0.12 - lvl * 0.012, 0.85 - lvl * 0.06, 1)
                 text_c(img, (W // 2, int(y0 + k * sz * 1.1)), l, sz, fill=col, sw=10 + lvl)
@@ -353,7 +337,7 @@ def render(frames, events, boss_t, sprites, out_dir, preview=False):
                 fl = Image.new("RGBA", (W, H), (255, 255, 255, int(220 * (1 - ab / 0.5))))
                 img.alpha_composite(fl)
             if ab > 1.0:
-                text_c(img, (W // 2, 1690), "NIVEAU MAX", 96, fill=(255, 90, 60))
+                text_c(img, (W // 2, 1800), "NIVEAU MAX", 96, fill=(255, 90, 60))
         # tremblement croissant
         lv = max([p[0] for p in fr["pots"]] + [0])
         amp = 0
@@ -388,7 +372,7 @@ def main():
             frames, events, boss_t = res
             dur = frames[-1]["t"]
             print(f"seed {s}: OK, boss à {boss_t:.1f}s, durée {dur:.1f}s, {len(events)} événements", flush=True)
-            if 22 <= boss_t <= 48 or seed is not None:
+            if 22 <= boss_t <= 40 or seed is not None:
                 break
             res = None
         else:
