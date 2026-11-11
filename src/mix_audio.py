@@ -52,7 +52,7 @@ for a in ev["announcements"]:
     v, sr = sf.read(os.path.join(VOICES, f"{lvl + 1:02d}.wav"), dtype="float32")
     if v.ndim > 1:
         v = v.mean(axis=1)
-    gain_db = -16.0 + 3.4 * lvl
+    gain_db = -9.0 + 2.5 * lvl
     put(v, a["t"], 10 ** (gain_db / 20))
 
 pk = float(np.max(np.abs(mix))) or 1.0
